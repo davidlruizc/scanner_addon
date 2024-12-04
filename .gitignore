@@ -1,0 +1,75 @@
+# Node/Electron
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+electron-builder.yml
+
+# Native addon build
+build/
+*.node
+*.exp
+*.lib
+*.pdb
+
+# Windows build outputs
+*.obj
+*.exe
+*.dll
+*.ilk
+*.manifest
+*.res
+*.pch
+*.idb
+*.ipdb
+*.iobj
+*.tlog/
+*.lastbuildstate
+*.unsuccessfulbuild
+*.log
+
+# Visual Studio
+.vs/
+*.sdf
+*.opensdf
+*.suo
+*.user
+*.VC.db
+*.VC.opendb
+ipch/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Distribution directories
+dist/
+out/
+
+# Development environment
+.env
+.env.local
+.env.*.local
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project-specific
+*.png
+*.jpg
+*.bmp
+temp/

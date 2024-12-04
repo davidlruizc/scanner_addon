@@ -1,0 +1,69 @@
+{
+  "name": "scanner_addon",
+  "version": "1.0.0",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "install": "node-gyp rebuild || exit 0",
+    "postinstall": "electron-rebuild -f -w scanner",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "rebuild": "node-gyp rebuild",
+    "build": "npm run build:addon && npm run build:electron",
+    "build:addon": "node-gyp rebuild",
+    "build:electron": "electron-builder --win --ia32",
+    "clean": "rimraf build/Release && rimraf build/Debug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bindings": "^1.5.0",
+    "node-addon-api": "^8.3.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9",
+    "node-gyp": "^10.2.0"
+  },
+  "build": {
+    "appId": "com.example.twain-scanner",
+    "productName": "TWAIN Scanner Example",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "ia32"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "extraResources": [
+      {
+        "from": "build/Release/",
+        "to": "./",
+        "filter": [
+          "*.node"
+        ]
+      }
+    ]
+  },
+  "gypfile": true
+}

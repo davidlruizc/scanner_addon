@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>TWAIN Scanner</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f0f0f0;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      button:hover {
+        background-color: #0056b3;
+      }
+
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+
+      .status {
+        padding: 10px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+        min-height: 20px;
+      }
+
+      .status.error {
+        background-color: #ffe6e6;
+        border: 1px solid #ff9999;
+        color: #cc0000;
+      }
+
+      .status.success {
+        background-color: #e6ffe6;
+        border: 1px solid #99ff99;
+        color: #006600;
+      }
+
+      .preview {
+        width: 100%;
+        min-height: 300px;
+        border: 2px dashed #ccc;
+        border-radius: 4px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+      }
+
+      .preview img {
+        max-width: 100%;
+        max-height: 500px;
+        object-fit: contain;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>TWAIN Scanner</h1>
+      <div class="controls">
+        <button id="initButton">Initialize Scanner</button>
+        <button id="scanButton" disabled>Scan Document</button>
+        <button id="saveButton" disabled>Save Image</button>
+      </div>
+      <div id="statusArea" class="status"></div>
+      <div id="preview" class="preview">
+        <span>No image scanned yet</span>
+      </div>
+    </div>
+
+    <script>
+      let currentImage = null;
+
+      // Get button elements
+      const initButton = document.getElementById("initButton");
+      const scanButton = document.getElementById("scanButton");
+      const saveButton = document.getElementById("saveButton");
+      const statusArea = document.getElementById("statusArea");
+      const preview = document.getElementById("preview");
+
+      // Update status function
+      function updateStatus(message, isError = false) {
+        statusArea.textContent = message;
+        statusArea.className = "status " + (isError ? "error" : "success");
+      }
+
+      // Initialize scanner
+      initButton.addEventListener("click", async () => {
+        try {
+          initButton.disabled = true;
+          updateStatus("Initializing scanner...");
+
+          const result = await window.scanner.initialize();
+
+          if (result.success) {
+            updateStatus(
+              `Scanner initialized successfully. Found ${result.deviceCount} device(s).`
+            );
+            scanButton.disabled = false;
+          } else {
+            throw new Error(result.message || "Failed to initialize scanner");
+          }
+        } catch (error) {
+          updateStatus(`Failed to initialize scanner: ${error.message}`, true);
+          initButton.disabled = false;
+        }
+      });
+
+      // Scan document
+      scanButton.addEventListener("click", async () => {
+        try {
+          scanButton.disabled = true;
+          updateStatus("Scanning...");
+
+          const result = await window.scanner.scan(true);
+
+          if (result.success && result.base64Image) {
+            currentImage = result.base64Image;
+            preview.innerHTML = `<img src="data:image/png;base64,${result.base64Image}" alt="Scanned document">`;
+            saveButton.disabled = false;
+            updateStatus("Document scanned successfully");
+          } else {
+            throw new Error(result.errorMessage || "Failed to scan document");
+          }
+        } catch (error) {
+          updateStatus(`Scanning failed: ${error.message}`, true);
+        } finally {
+          scanButton.disabled = false;
+        }
+      });
+
+      // Save image
+      saveButton.addEventListener("click", async () => {
+        if (!currentImage) {
+          updateStatus("No image to save", true);
+          return;
+        }
+
+        try {
+          saveButton.disabled = true;
+          updateStatus("Saving image...");
+
+          const saved = await window.electronAPI.saveImage(currentImage);
+
+          if (saved) {
+            updateStatus("Image saved successfully");
+          } else {
+            updateStatus("Save cancelled by user");
+          }
+        } catch (error) {
+          updateStatus(`Failed to save image: ${error.message}`, true);
+        } finally {
+          saveButton.disabled = false;
+        }
+      });
+
+      // Cleanup on window unload
+      window.addEventListener("unload", async () => {
+        try {
+          await window.scanner.cleanup();
+        } catch (error) {
+          console.error("Cleanup failed:", error);
+        }
+      });
+    </script>
+  </body>
+</html>
