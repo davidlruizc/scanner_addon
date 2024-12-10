@@ -10,9 +10,10 @@ public:
 private:
     static Napi::FunctionReference constructor;
     
-    Napi::Value Initialize(const Napi::CallbackInfo& info);
+     Napi::Value Initialize(const Napi::CallbackInfo& info);
     Napi::Value Scan(const Napi::CallbackInfo& info);
     Napi::Value Cleanup(const Napi::CallbackInfo& info);
+    Napi::Value IsDuplexSupported(const Napi::CallbackInfo& info);
     
     std::unique_ptr<TwainScanner> scanner;
 };

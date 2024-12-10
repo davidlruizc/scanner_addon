@@ -9,6 +9,7 @@ Napi::Object ScannerAddon::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("initialize", &ScannerAddon::Initialize),
         InstanceMethod("scan", &ScannerAddon::Scan),
         InstanceMethod("cleanup", &ScannerAddon::Cleanup),
+        InstanceMethod("isDuplexSupported", &ScannerAddon::IsDuplexSupported),
     });
 
     constructor = Napi::Persistent(func);
@@ -34,6 +35,17 @@ Napi::Value ScannerAddon::Initialize(const Napi::CallbackInfo& info) {
     response.Set("deviceCount", Napi::Number::New(env, result.deviceCount));
     
     return response;
+}
+
+Napi::Value ScannerAddon::IsDuplexSupported(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (!scanner) {
+        Napi::Error::New(env, "Scanner not initialized").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    
+    return Napi::Boolean::New(env, scanner->IsDuplexSupported());
 }
 
 Napi::Value ScannerAddon::Scan(const Napi::CallbackInfo& info) {

@@ -33,6 +33,13 @@ contextBridge.exposeInMainWorld("scanner", {
     return scannerInstance.initialize();
   },
 
+  isDuplexSupported: () => {
+    if (!scannerInstance) {
+      return Promise.reject(new Error("Scanner not initialized"));
+    }
+    return scannerInstance.isDuplexSupported();
+  },
+
   scan: (showUI = true) => {
     if (!scannerInstance) {
       return Promise.reject(new Error("Scanner not initialized"));
