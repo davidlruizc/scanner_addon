@@ -529,134 +529,67 @@ ScannerResult TwainScanner::ProcessDuplexImages(const std::vector<TW_HANDLE>& ha
 
     try {
         printf("Starting duplex image processing with %zu images\n", handles.size());
-
-        // First pass: analyze all images and calculate total size needed
-        std::vector<size_t> imageSizes;
-        size_t maxWidth = 0;
-        size_t maxHeight = 0;
-        size_t totalHeight = 0;
-
-        for (size_t i = 0; i < handles.size(); i++) {
-            PBITMAPINFOHEADER pHeader = (PBITMAPINFOHEADER)GlobalLock((HANDLE)handles[i]);
-            if (!pHeader) {
-                throw std::runtime_error("Failed to lock image memory for analysis");
-            }
-
-            printf("Image %zu dimensions: %ldx%ld, bits per pixel: %d\n", 
-                   i + 1, pHeader->biWidth, pHeader->biHeight, pHeader->biBitCount);
-
-            // Store dimensions and handle negative heights
-            size_t width = static_cast<size_t>(pHeader->biWidth);
-            long height = pHeader->biHeight;
-            size_t absHeight = height < 0 ? static_cast<size_t>(-height) : static_cast<size_t>(height);
-            
-            maxWidth = (width > maxWidth) ? width : maxWidth;
-            maxHeight = (absHeight > maxHeight) ? absHeight : maxHeight;
-            totalHeight += absHeight;
-
-            // Calculate this image's row size and total size
-            size_t rowSize = ((width * pHeader->biBitCount + 31) / 32) * 4;
-            size_t imageSize = rowSize * absHeight;
-            imageSizes.push_back(imageSize);
-
-            GlobalUnlock((HANDLE)handles[i]);
-        }
-
-        printf("Max dimensions found: width=%zu, height=%zu\n", maxWidth, maxHeight);
-        printf("Total combined height: %zu\n", totalHeight);
-
-        // Calculate final buffer size
-        size_t headerOffset = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-        size_t maxRowSize = ((maxWidth * 24 + 31) / 32) * 4; // Using 24 bits per pixel
-        size_t totalImageSize = maxRowSize * totalHeight;
-        size_t totalFileSize = headerOffset + totalImageSize;
-
-        printf("Calculated sizes:\n");
-        printf("Header offset: %zu\n", headerOffset);
-        printf("Max row size: %zu\n", maxRowSize);
-        printf("Total image size: %zu\n", totalImageSize);
-        printf("Total file size: %zu\n", totalFileSize);
-
-        // Create output buffer
-        std::vector<BYTE> combinedBuffer(totalFileSize);
-
-        // Set up file header
-        BITMAPFILEHEADER fileHeader = { 0 };
-        fileHeader.bfType = 0x4D42; // "BM"
-        fileHeader.bfSize = static_cast<DWORD>(totalFileSize);
-        fileHeader.bfOffBits = static_cast<DWORD>(headerOffset);
-
-        // Set up info header
-        BITMAPINFOHEADER infoHeader = { 0 };
-        infoHeader.biSize = sizeof(BITMAPINFOHEADER);
-        infoHeader.biWidth = static_cast<LONG>(maxWidth);
-        infoHeader.biHeight = static_cast<LONG>(totalHeight);
-        infoHeader.biPlanes = 1;
-        infoHeader.biBitCount = 24;
-        infoHeader.biCompression = BI_RGB;
-        infoHeader.biSizeImage = static_cast<DWORD>(totalImageSize);
-
-        // Copy headers
-        memcpy(combinedBuffer.data(), &fileHeader, sizeof(BITMAPFILEHEADER));
-        memcpy(combinedBuffer.data() + sizeof(BITMAPFILEHEADER), &infoHeader, sizeof(BITMAPINFOHEADER));
-
-        // Copy image data
-        size_t currentOffset = headerOffset;
-        size_t currentHeight = 0;
-
+        
+        // Process each image separately instead of combining them
         for (size_t i = 0; i < handles.size(); i++) {
             printf("Processing image %zu of %zu\n", i + 1, handles.size());
-
+            
             PBITMAPINFOHEADER pHeader = (PBITMAPINFOHEADER)GlobalLock((HANDLE)handles[i]);
             if (!pHeader) {
                 throw std::runtime_error("Failed to lock image memory");
             }
 
-            // Calculate source dimensions
-            size_t srcWidth = static_cast<size_t>(pHeader->biWidth);
-            long height = pHeader->biHeight;
-            size_t srcHeight = height < 0 ? static_cast<size_t>(-height) : static_cast<size_t>(height);
-            size_t srcRowSize = ((srcWidth * pHeader->biBitCount + 31) / 32) * 4;
+            // Calculate sizes
+            DWORD dwImageSize = pHeader->biSizeImage;
+            DWORD dwFileSize = dwImageSize + sizeof(BITMAPFILEHEADER) + pHeader->biSize;
             
-            // Copy rows with potential padding
-            BYTE* srcData = (BYTE*)pHeader + pHeader->biSize;
-            for (size_t row = 0; row < srcHeight; row++) {
-                size_t srcOffset = row * srcRowSize;
-                size_t dstOffset = currentOffset + (row * maxRowSize);
-                
-                // Copy actual pixel data
-                size_t pixelsToCopy = (srcWidth < maxWidth ? srcWidth : maxWidth) * 3;
-                if (dstOffset + pixelsToCopy <= combinedBuffer.size()) {
-                    memcpy(combinedBuffer.data() + dstOffset, srcData + srcOffset, pixelsToCopy);
-                }
+            // Create file header
+            BITMAPFILEHEADER fileHeader = { 0 };
+            fileHeader.bfType = 0x4D42; // "BM"
+            fileHeader.bfSize = dwFileSize;
+            fileHeader.bfOffBits = sizeof(BITMAPFILEHEADER) + pHeader->biSize;
+
+            // Create memory buffer for the complete BMP
+            std::vector<BYTE> buffer(dwFileSize);
+            
+            // Copy file header
+            memcpy(buffer.data(), &fileHeader, sizeof(BITMAPFILEHEADER));
+            
+            // Copy info header and color table
+            DWORD headerSize = pHeader->biSize;
+            memcpy(buffer.data() + sizeof(BITMAPFILEHEADER), pHeader, headerSize);
+            
+            // Copy image data
+            memcpy(
+                buffer.data() + sizeof(BITMAPFILEHEADER) + headerSize,
+                (BYTE*)pHeader + headerSize,
+                dwImageSize
+            );
+
+            GlobalUnlock((HANDLE)handles[i]);
+
+            // Convert to Base64
+            static const char base64Chars[] =
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+            std::string base64;
+            base64.reserve(((buffer.size() + 2) / 3) * 4);
+
+            for (size_t j = 0; j < buffer.size(); j += 3) {
+                uint32_t b = (buffer[j] << 16) & 0xFF0000;
+                if (j + 1 < buffer.size()) b |= (buffer[j + 1] << 8) & 0xFF00;
+                if (j + 2 < buffer.size()) b |= buffer[j + 2] & 0xFF;
+
+                base64.push_back(base64Chars[(b >> 18) & 0x3F]);
+                base64.push_back(base64Chars[(b >> 12) & 0x3F]);
+                base64.push_back(j + 1 < buffer.size() ? base64Chars[(b >> 6) & 0x3F] : '=');
+                base64.push_back(j + 2 < buffer.size() ? base64Chars[b & 0x3F] : '=');
             }
 
-            currentOffset += srcHeight * maxRowSize;
-            currentHeight += srcHeight;
-            GlobalUnlock((HANDLE)handles[i]);
+            result.base64Images.push_back(base64);
         }
 
-        // Convert to Base64
-        static const char base64Chars[] =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-        std::string base64;
-        base64.reserve(((combinedBuffer.size() + 2) / 3) * 4);
-
-        for (size_t i = 0; i < combinedBuffer.size(); i += 3) {
-            uint32_t b = (combinedBuffer[i] << 16) & 0xFF0000;
-            if (i + 1 < combinedBuffer.size()) b |= (combinedBuffer[i + 1] << 8) & 0xFF00;
-            if (i + 2 < combinedBuffer.size()) b |= combinedBuffer[i + 2] & 0xFF;
-
-            base64.push_back(base64Chars[(b >> 18) & 0x3F]);
-            base64.push_back(base64Chars[(b >> 12) & 0x3F]);
-            base64.push_back(i + 1 < combinedBuffer.size() ? base64Chars[(b >> 6) & 0x3F] : '=');
-            base64.push_back(i + 2 < combinedBuffer.size() ? base64Chars[b & 0x3F] : '=');
-        }
-
-        printf("Image processing completed successfully\n");
         result.success = true;
-        result.base64Image = std::move(base64);
 
     } catch (const std::exception& e) {
         result.errorMessage = std::string("Duplex image processing error: ") + e.what();
@@ -665,6 +598,7 @@ ScannerResult TwainScanner::ProcessDuplexImages(const std::vector<TW_HANDLE>& ha
 
     return result;
 }
+
 
 
 ScannerResult TwainScanner::ProcessImage(TW_MEMREF handle) {
@@ -731,7 +665,7 @@ ScannerResult TwainScanner::ProcessImage(TW_MEMREF handle) {
         }
 
         result.success = true;
-        result.base64Image = base64;
+        result.base64Images.push_back(base64);  // Changed from base64Image to base64Images.push_back()
         return result;
     }
     catch (const std::exception& e) {

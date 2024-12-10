@@ -60,8 +60,13 @@ Napi::Value ScannerAddon::Scan(const Napi::CallbackInfo& info) {
     
     auto response = Napi::Object::New(env);
     response.Set("success", Napi::Boolean::New(env, result.success));
+    
     if (result.success) {
-        response.Set("base64Image", Napi::String::New(env, result.base64Image));
+        auto images = Napi::Array::New(env, result.base64Images.size());
+        for (size_t i = 0; i < result.base64Images.size(); i++) {
+            images[i] = Napi::String::New(env, result.base64Images[i]);
+        }
+        response.Set("images", images);
     } else {
         response.Set("errorMessage", Napi::String::New(env, result.errorMessage));
     }

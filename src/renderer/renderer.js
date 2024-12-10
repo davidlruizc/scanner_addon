@@ -61,10 +61,30 @@ async function performScan() {
 
     const result = await window.scanner.scan(true);
 
-    if (result.success && result.base64Image) {
-      currentImage = result.base64Image;
-      updateStatus("Scan completed successfully", "success");
-      preview.innerHTML = `<img src="data:image/png;base64,${result.base64Image}" alt="Scanned document">`;
+    if (result.success && result.images && result.images.length > 0) {
+      // Store all images
+      currentImages = result.images;
+
+      updateStatus(
+        `Scan completed successfully - ${result.images.length} pages`,
+        "success"
+      );
+
+      // Create a container for multiple images
+      let previewHtml = '<div class="multi-page-preview">';
+      result.images.forEach((base64Image, index) => {
+        previewHtml += `
+          <div class="page-preview">
+            <h3>Page ${index + 1}</h3>
+            <img src="data:image/png;base64,${base64Image}" alt="Scanned document page ${
+          index + 1
+        }">
+          </div>
+        `;
+      });
+      previewHtml += "</div>";
+
+      preview.innerHTML = previewHtml;
       saveButton.disabled = false;
     } else {
       updateStatus(result.errorMessage || "Failed to scan", "error");
@@ -81,30 +101,67 @@ async function performScan() {
 
 // Save scanned image
 async function saveImage() {
-  if (!currentImage) {
-    updateStatus("No image to save", "error");
+  if (!currentImages || currentImages.length === 0) {
+    updateStatus("No images to save", "error");
     return;
   }
 
   try {
     saveButton.disabled = true;
     saveButton.textContent = "Saving...";
-    updateStatus("Saving image...");
 
-    const saved = await window.electronAPI.saveImage(currentImage);
+    for (let i = 0; i < currentImages.length; i++) {
+      updateStatus(`Saving image ${i + 1} of ${currentImages.length}...`);
 
-    if (saved) {
-      updateStatus("Image saved successfully", "success");
-    } else {
-      updateStatus("Failed to save image", "error");
+      const saved = await window.electronAPI.saveImage(currentImages[i]);
+
+      if (!saved) {
+        updateStatus(`Failed to save image ${i + 1}`, "error");
+        return;
+      }
     }
+
+    updateStatus(
+      `Successfully saved ${currentImages.length} images`,
+      "success"
+    );
   } catch (error) {
-    updateStatus(`Error saving image: ${error.message}`, "error");
+    updateStatus(`Error saving images: ${error.message}`, "error");
   } finally {
     saveButton.disabled = false;
-    saveButton.textContent = "Save Image";
+    saveButton.textContent = "Save Images";
   }
 }
+
+const style = document.createElement("style");
+style.textContent = `
+.multi-page-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+}
+
+.page-preview {
+  flex: 0 1 45%;
+  min-width: 300px;
+  text-align: center;
+}
+
+.page-preview img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.page-preview h3 {
+  margin: 0 0 10px 0;
+  color: #666;
+}
+`;
+document.head.appendChild(style);
 
 // Event listeners
 initButton.addEventListener("click", initializeScanner);

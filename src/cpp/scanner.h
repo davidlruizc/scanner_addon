@@ -8,7 +8,7 @@
 class ScannerResult {
 public:
     bool success;
-    std::string base64Image;
+    std::vector<std::string> base64Images;
     std::string errorMessage;
     
     ScannerResult() : success(false) {}
